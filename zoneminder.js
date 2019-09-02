@@ -30,7 +30,7 @@ function ZoneMinder() {
     this.isConnected = false;
 
     var Monitors = require(__dirname + '/monitors');
-    var Monitors = new Monitors();
+    Monitors = new Monitors();
 
     this.Monitors = function () {
         return Monitors;
@@ -70,8 +70,6 @@ function ZoneMinder() {
                                 LoggedIn = false;
                             }
                             Callback(data);
-
-
                         }
                     );
                 }
@@ -135,10 +133,9 @@ function ZoneMinder() {
     }
 
     this.ForceAlarm = function (MonZMId, value, result) {
+        var OnOffStr = 'off';
         if (value)
             OnOffStr = 'on';
-        else
-            OnOffStr = 'off';
         return this.API_Request('/api/monitors/alarm/id:'+MonZMId+'/command:'+OnOffStr +'.json', function (data) {
             if (result) result();
         });
@@ -148,140 +145,136 @@ function ZoneMinder() {
     this.RequestMonitorsList = function (onStateChange, onDone) {
 
         return this.API_Request('/api/monitors.json', function (data) {
-            //console.log("STATUS:" + response.statusCode);
             //console.log("  DATA:" + data);
             var fbResponse = JSON.parse(data);
             for (var i = 0; i < fbResponse.monitors.length; i++) {
-                Monitors.AddOrUpdate(fbResponse.monitors[i].Monitor,onStateChange)
+                Monitors.AddOrUpdate(fbResponse.monitors[i].Monitor,onStateChange);
                 //result(fbResponse.monitors[i].Monitor);
-            if (onDone)
-                onDone();
-
+                if (onDone)
+                    onDone();
             }
 
         }.bind(this));
     }
 
+    this.Login = function (Host, User, Pass, Done) {
+        Host_Url = Host;
+        Username = User;
+        Password = Pass;
 
-this.Login = function (Host, User, Pass, Done) {
-    Host_Url = Host;
-    Username = User;
-    Password = Pass;
+        Error = "";
 
-    Error = "";
+        var url = require( "url" );
 
-    var url = require( "url" );
+        parsedurl = url.parse(Host);
+        var Callback = function (data) {
+            this.isConnected = !(data.indexOf("var failed = true;") !== -1);
+            if (!this.isConnected)
+                Error = "Login failed! Check username/password";
+            Done(this.isConnected);
+        }.bind(this);
 
-    parsedurl = url.parse( Host);
+        var Callback_Error = function (err) {
+            this.isConnected = false;
+            Error = "Error at Login:" + err;
+            Done(this.isConnected);
+        }.bind(this);
 
-    var Callback = function (data) {
-        this.isConnected= !(data.indexOf("var failed = true;") !== -1);
-        if (!this.isConnected)
-            Error = "Login failed! Check username/password";
-        Done(this.isConnected);
-    }.bind(this);
+        http_options = {
+            hostname: parsedurl.hostname,
+            port: ( parsedurl.port || 80 ), // 80 by default
+            method: 'GET',
+            path: parsedurl.path+'/index.php?username='+Username+'&password='+Password+'&action=login&view=console',
+            headers: { },
+        };
 
-    var Callback_Error = function (err) {
-        this.isConnected = false;
-        Error = "Error at Login:" + err;
-        Done(this.isConnected);
-    }.bind(this);
+        var request = http.request(
+            http_options,
+            function ( response ) {
+                setcookie = response.headers["set-cookie"];
+                if ( setcookie ) {
+                    setcookie.forEach(
+                        function ( cookiestr ) {
+                            CookieAllInOne = CookieAllInOne + cookiestr +';';
+                        }
+                    );
+                }
 
-    http_options = {
-        hostname: parsedurl.hostname,
-        port: ( parsedurl.port || 80 ), // 80 by default
-        method: 'GET',
-        path: parsedurl.path+'/index.php?username='+Username+'&password='+Password+'&action=login&view=console',
-        headers: { },
-    };
-
-    var request = http.request(
-        http_options,
-        function ( response ) {
-            setcookie = response.headers["set-cookie"];
-            if ( setcookie ) {
-                setcookie.forEach(
-                    function ( cookiestr ) {
-                        CookieAllInOne = CookieAllInOne + cookiestr +';';
+                var data = "";
+                response.on(
+                    "data",
+                    function ( chunk ) {
+                        data += chunk;
                     }
                 );
+
+
+                response.on(
+                    "end",function () {Callback(data);});
+
             }
+        );
 
-            var data = "";
-            response.on(
-                "data",
-                function ( chunk ) {
-                    data += chunk;
-                }
-            );
+        request.on(
+            "error",
+            Callback_Error
+        );
+        request.end();
+    }
 
+    this.Version = function () {
+        return _Version;
+    }
 
-             response.on(
-                "end",function () {Callback(data);});
+    this.API_Version = function () {
+        return _API_Version;
+    }
 
-        }
-    );
-
-    request.on(
-        "error",
-        Callback_Error
-    );
-    request.end();
-}
-
-this.Version = function () {
-    return _Version;
-}
-
-this.API_Version = function () {
-    return _API_Version;
-}
-
-this.getError = function () {
-        return Error;
-}
+    this.getError = function () {
+            return Error;
+    }
 
 
 
-this.Send = function(id,value, monitorID, url,keyword) {
+    this.Send = function(id,value, monitorID, url,keyword) {
 
-    var post_data = keyword+"["+id+"]="+value;
+        var post_data = keyword+"["+id+"]="+value;
 
-    var http = require( "http" );
-    var options = {
-        hostname: parsedurl.hostname,
-        port: ( parsedurl.port || 80 ), // 80 by default
-        path: parsedurl.path+'/api/'+url,
-        method: 'POST',
-        headers: {
-            'User-Agent': 'iobroker.zoneminder',
-            'Referer': 'localhost',
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Cookie': CookieAllInOne
-        }
-    };
+        var http = require( "http" );
+        var options = {
+            hostname: parsedurl.hostname,
+            port: ( parsedurl.port || 80 ), // 80 by default
+            path: parsedurl.path+'/api/'+url,
+            method: 'POST',
+            headers: {
+                'User-Agent': 'iobroker.zoneminder',
+                'Referer': 'localhost',
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Cookie': CookieAllInOne
+            }
+        };
 
-    var post_req = http.request(options, function(res) {
-        console.log('Status: ' + res.statusCode);
-        console.log('Headers: ' + JSON.stringify(res.headers));
-        res.setEncoding('utf8');
+        var post_req = http.request(options, function(res) {
+            //console.log('Status: ' + res.statusCode);
+            //console.log('Headers: ' + JSON.stringify(res.headers));
+            res.setEncoding('utf8');
 
-        res.on('data', function (chunk) {
-            console.log('Response: ' + chunk);
+            res.on('data', function (chunk) {
+                console.log('Response: ' + chunk);
+            });
+
         });
 
-    });
-
-    post_req.on('error', function(e) {
-        console.log('problem with request: ' + e.message);
-    });
+        post_req.on('error', function(e) {
+            console.log('problem with request: ' + e.message);
+        });
 
 
-    post_req.write(post_data);
-    post_req.end();
+        post_req.write(post_data);
+        post_req.end();
 
-    console.log(post_data);
-}
+        console.log(post_data);
+    }
 
 
     this.Send_MonitorState = function(id,value, monitorID) {
@@ -292,6 +285,4 @@ this.Send = function(id,value, monitorID, url,keyword) {
     this.Send_ZoneState = function (id,value, monitorID) {
         this.Send(id,value, monitorID,'zones/'+monitorID+'.json','Zone');
     }
-
-
 }
